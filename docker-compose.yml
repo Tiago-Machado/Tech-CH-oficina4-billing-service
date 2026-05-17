@@ -1,0 +1,47 @@
+services:
+  mongodb-billing:
+    image: mongo:7-jammy
+    container_name: billing-service-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: billing_user
+      MONGO_INITDB_ROOT_PASSWORD: billing_pass123
+      MONGO_INITDB_DATABASE: billing_service
+    volumes:
+      - mongodb_billing_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - oficina-network
+
+  billing-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: billing-service-app
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      MONGODB_URI: mongodb://billing_user:billing_pass123@mongodb-billing:27017/billing_service?authSource=admin
+      RABBITMQ_URL: amqp://oficina:oficina123@rabbitmq:5672
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
+    depends_on:
+      mongodb-billing:
+        condition: service_healthy
+    networks:
+      - oficina-network
+
+volumes:
+  mongodb_billing_data:
+
+networks:
+  oficina-network:
+    driver: bridge
